@@ -37,6 +37,21 @@ struct HTTPTypesTests {
         #expect(text.contains("\"ok\":true") || text.contains("\"ok\": true"))
     }
 
+    @Test("HTTPResponse treats caller header names case-insensitively")
+    func responseHeaderNamesAreCaseInsensitive() throws {
+        let resp = HTTPResponse(
+            status: 200,
+            reason: "OK",
+            headers: ["Content-Type": "text/html; charset=utf-8"],
+            body: Data("<html></html>".utf8)
+        )
+        let text = try #require(String(data: resp.serialize(), encoding: .utf8))
+        let contentTypeLines = text
+            .components(separatedBy: "\r\n")
+            .filter { $0.hasPrefix("Content-Type:") }
+        #expect(contentTypeLines == ["Content-Type: text/html; charset=utf-8"])
+    }
+
     @Test("parse throws on missing header terminator")
     func parseMalformed() {
         let raw = "GET /state HTTP/1.1\r\nHost: localhost\r\n"  // no \r\n\r\n

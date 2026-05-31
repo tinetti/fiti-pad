@@ -344,6 +344,31 @@ struct ToolbarControllerTooltipTests {
         #expect(toolbar.testOnly_hideButtonTooltip == "Show drawings — h")
     }
 
+    @Test("remote pairing PIN is omitted by default")
+    func remotePairingPinOmittedByDefault() {
+        let (toolbar, _) = make()
+        #expect(toolbar.testOnly_pairingPinText == nil)
+    }
+
+    @Test("remote pairing PIN is shown when provided")
+    func remotePairingPinShownWhenProvided() {
+        let clock = VirtualClock()
+        let editor = Editor(clock: clock, ids: SeededIdGenerator(prefix: "s"))
+        let controller = AppController(
+            editor: editor,
+            window: RecordingWindow(),
+            detector: RecordingStationaryDetector(),
+            clock: clock,
+            ticker: RecordingFadeTicker(),
+            textMeasurer: CoreTextMeasurer()
+        )
+        let toolbar = ToolbarController(controller: controller,
+                                        defaults: UserDefaults(suiteName: UUID().uuidString)!,
+                                        remotePairingPIN: "1234")
+        #expect(toolbar.testOnly_pairingPinText == "Remote PIN\n1234")
+        #expect(toolbar.testOnly_pairingPinTooltip == "Remote control pairing PIN: 1234")
+    }
+
     @Test("auto-fade button tooltip flips with autoFadeEnabled")
     func autoFadeButtonTooltip() {
         let (toolbar, controller) = make()

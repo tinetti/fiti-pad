@@ -11,6 +11,7 @@ import Network
 // the start() busy-wait. A POC concession; a proper fix would actor-isolate
 // the class or replace the busy-wait with a semaphore signaled from the
 // NWListener state handler.
+// swiftlint:disable:next type_body_length
 public final class DevHTTPServer: @unchecked Sendable {
     let surface: DevHTTPSurface
     var router: Router
@@ -154,11 +155,22 @@ public final class DevHTTPServer: @unchecked Sendable {
             return .ok()
         }
 
+        installRemoteClientRoutes()
         installToolbarRoutes()
         installTextRoutes()
         installHistoryRoutes()
         installSnapshotRoute()
         installOutlineRoute()
+    }
+
+    private func installRemoteClientRoutes() {
+        router.add("GET", "/remote") { _, _ in
+            DevHTTPServer.serveRemoteClientAsset(filename: "index.html", contentType: "text/html; charset=utf-8")
+        }
+
+        router.add("GET", "/client.js") { _, _ in
+            DevHTTPServer.serveRemoteClientAsset(filename: "client.js", contentType: "application/javascript; charset=utf-8")
+        }
     }
 
     private func installToolbarRoutes() {
@@ -295,6 +307,36 @@ public final class DevHTTPServer: @unchecked Sendable {
             "editingText": surface.editingText as Any
         ]
         return .json(payload)
+    }
+
+    /// Serve browser remote-control assets from dev/remote-client.
+    private static func serveRemoteClientAsset(filename: String, contentType: String) -> HTTPResponse {
+        guard let asset = remoteClientAsset(filename: filename) else {
+            return HTTPResponse(
+                status: 404,
+                reason: "Not Found",
+                body: Data("Remote client asset not found: \(filename)".utf8)
+            )
+        }
+        return HTTPResponse(
+            status: 200,
+            reason: "OK",
+            headers: ["Content-Type": contentType],
+            body: asset
+        )
+    }
+
+    private static func remoteClientAsset(filename: String) -> Data? {
+        let candidates = [
+            FileManager.default.currentDirectoryPath + "/dev/remote-client/\(filename)",
+            "/Users/tinetti/Projects/fiti-pad/dev/remote-client/\(filename)"
+        ]
+        for path in candidates {
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+                return data
+            }
+        }
+        return nil
     }
 
 }

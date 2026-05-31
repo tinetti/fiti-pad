@@ -13,11 +13,14 @@ public struct HTTPResponse: Sendable {
     public init(status: Int, reason: String, headers: [String: String] = [:], body: Data = Data()) {
         self.status = status
         self.reason = reason
-        var h = headers
-        h["content-length"] = String(body.count)
-        if h["content-type"] == nil { h["content-type"] = "text/plain; charset=utf-8" }
-        h["connection"] = "close"
-        self.headers = h
+        var normalizedHeaders: [String: String] = [:]
+        for (name, value) in headers {
+            normalizedHeaders[name.lowercased()] = value
+        }
+        normalizedHeaders["content-length"] = String(body.count)
+        if normalizedHeaders["content-type"] == nil { normalizedHeaders["content-type"] = "text/plain; charset=utf-8" }
+        normalizedHeaders["connection"] = "close"
+        self.headers = normalizedHeaders
         self.body = body
     }
 

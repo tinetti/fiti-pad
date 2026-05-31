@@ -18,15 +18,19 @@ public final class ToolbarController: NSObject {
     private let markControl = MarkControl()
     private let hideButton: NSButton
     private let autoFadeButton = FirstMouseButton(title: "", target: nil, action: nil)
+    private let remotePairingPIN: String?
+    private var pairingPinLabel: NSTextField?
     private var quickPickButtons: [NSButton] = []
 
     private(set) var activeSwatchIndex: Int?
 
     public init(controller: AppController, defaults: UserDefaults = .standard,
-                outlineSettings: OutlineSettings = DefaultOutlineSettings()) {
+                outlineSettings: OutlineSettings = DefaultOutlineSettings(),
+                remotePairingPIN: String? = nil) {
         self.controller = controller
         self.defaults = defaults
         self.outlineSettings = outlineSettings
+        self.remotePairingPIN = remotePairingPIN
         self.panel = ToolbarPanel()
         self.hideButton = FirstMouseButton(title: "", target: nil, action: nil)
         super.init()
@@ -151,6 +155,17 @@ public final class ToolbarController: NSObject {
         updateAutoFadeGlyph(enabled: controller.autoFadeEnabled)
         stack.addArrangedSubview(autoFadeButton)
         autoFadeButton.widthAnchor.constraint(equalTo: hideButton.widthAnchor).isActive = true
+
+        if let remotePairingPIN {
+            let label = NSTextField(labelWithString: "Remote PIN\n\(remotePairingPIN)")
+            label.alignment = .center
+            label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+            label.textColor = .secondaryLabelColor
+            label.toolTip = "Remote control pairing PIN: \(remotePairingPIN)"
+            label.lineBreakMode = .byWordWrapping
+            pairingPinLabel = label
+            stack.addArrangedSubview(label)
+        }
 
         let container = ToolbarContainerView()
         container.addSubview(stack)
@@ -356,6 +371,8 @@ public final class ToolbarController: NSObject {
     internal var testOnly_opacitySliderTooltip: String? { markControl.testOnly_opacityTooltip }
     internal var testOnly_hideButtonTooltip: String? { hideButton.toolTip }
     internal var testOnly_autoFadeTooltip: String? { autoFadeButton.toolTip }
+    internal var testOnly_pairingPinText: String? { pairingPinLabel?.stringValue }
+    internal var testOnly_pairingPinTooltip: String? { pairingPinLabel?.toolTip }
     internal var testOnly_widthLabelText: String { markControl.testOnly_sizeLabelText }
     internal var testOnly_opacityLabelText: String { markControl.testOnly_opacityLabelText }
     internal var testOnly_activeSwatchIndex: Int? { activeSwatchIndex }
