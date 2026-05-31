@@ -17,6 +17,8 @@ final class FitiAppDelegate: NSObject, NSApplicationDelegate {
     var editor: Editor!
     #if DEBUG
     var devServer: DevHTTPServer?
+    var remoteControlWebSocket: RemoteControlWebSocketHandler?
+    var pairingManager: PairingManager?
     #endif
     var subscription: Cancellable?
     var outlineSettings: UserDefaultsOutlineSettings!
@@ -64,12 +66,16 @@ final class FitiAppDelegate: NSObject, NSApplicationDelegate {
                                             fadeSettings: fadeSettings,
                                             outlineSettings: outlineSettings,
                                             onOutlineChanged: { [weak self] in self?.canvas.refresh() })
+        let remotePairingPIN = prepareRemotePairingPIN()
         menubar = MenubarController(
             controller: controller,
             editor: editor,
+            remotePairingPIN: remotePairingPIN,
             onOpenPreferences: { [weak self] in self?.preferences.show() }
         )
-        toolbar = ToolbarController(controller: controller, outlineSettings: outlineSettings)
+        toolbar = ToolbarController(controller: controller,
+                                    outlineSettings: outlineSettings,
+                                    remotePairingPIN: remotePairingPIN)
         keyMonitor = KeyMonitor(controller: controller)
         composeControllerCallbacks()
         followToolbarToScreen(clearStrokes: false)  // initial sync — autosaved toolbar position may be on a non-main screen
@@ -77,10 +83,23 @@ final class FitiAppDelegate: NSObject, NSApplicationDelegate {
 
         wireInputAndSubscriptions()
         maybeStartDevServer()
+        maybeStartRemoteControl()
 
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
         syncToolbarRegion()
+    }
+
+    @MainActor
+    private func prepareRemotePairingPIN() -> String? {
+        guard args.dev else { return nil }
+        #if DEBUG
+        let pairingManager = PairingManager()
+        self.pairingManager = pairingManager
+        return pairingManager.currentPin
+        #else
+        return nil
+        #endif
     }
 
     @MainActor
@@ -101,6 +120,27 @@ final class FitiAppDelegate: NSObject, NSApplicationDelegate {
         }
         #else
         NSLog("fiti: --dev is a no-op in Release builds (DevHTTP surface is compiled out)")
+        #endif
+    }
+
+    @MainActor
+    private func maybeStartRemoteControl() {
+        guard args.dev else { return }
+        #if DEBUG
+        // Start remote control WebSocket server on port 9987
+        guard let pairingManager else { return }
+        remoteControlWebSocket = RemoteControlWebSocketHandler(
+            controlPort: controller,
+            pairingManager: pairingManager
+        )
+        Task {
+            do {
+                try await remoteControlWebSocket?.start(port: 9987)
+                NSLog("fiti remote control WebSocket listening on port 9987")
+            } catch {
+                NSLog("fiti remote control WebSocket failed to start: \(error)")
+            }
+        }
         #endif
     }
 

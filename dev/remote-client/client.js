@@ -4,7 +4,8 @@
 (function() {
     'use strict';
 
-    const WS_URL = new URL('ws://' + location.host + '/remote-control');
+    const websocketPort = location.hostname ? '9987' : location.port;
+    const WS_URL = new URL('ws://' + location.hostname + ':' + websocketPort + '/remote-control');
     const CONNECT_TIMEOUT = 10000;
 
     let ws = null;
@@ -129,6 +130,13 @@
             remember: remember
         };
 
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            pairErrorEl.textContent = 'Not connected to fiti. Check that the Mac app is running with --dev and port 9987 is reachable.';
+            pairErrorEl.style.display = 'block';
+            return;
+        }
+
+        pairErrorEl.style.display = 'none';
         ws.send(JSON.stringify(message));
     }
 
@@ -197,10 +205,11 @@
     }
 
     // Normalize coordinates to 0-1 range
-    function normalizePoint(x, y) {
+    function normalizePoint(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
         return {
-            x: x / canvas.width,
-            y: y / canvas.height
+            x: (clientX - rect.left) / rect.width,
+            y: (clientY - rect.top) / rect.height
         };
     }
 

@@ -54,47 +54,66 @@ public enum RemoteParseError: Error, Equatable {
 /// Parse a single JSON message (Data) into a RemoteAction.
 /// The transport layer is responsible for calling this when a text message arrives.
 public func parseRemoteAction(from data: Data) throws -> RemoteAction {
-    let any = try JSONSerialization.jsonObject(with: data, options: [])
-    guard let dict = any as? [String: Any] else {
-        throw RemoteParseError.invalidJSON
-    }
-    guard let typeAny = dict["type"] else { throw RemoteParseError.missingType }
-    guard let type = typeAny as? String else { throw RemoteParseError.missingType }
+    let dict = try remoteDictionary(from: data)
+    guard let type = dict["type"] as? String else { throw RemoteParseError.missingType }
 
     switch type {
     case "startStroke":
-        do {
-            let json = try JSONSerialization.data(withJSONObject: dict, options: [])
-            let s = try JSONDecoder().decode(RemoteStartStroke.self, from: json)
-            return .startStroke(s)
-        } catch {
-            throw RemoteParseError.invalidPayload("startStroke: \(error)")
-        }
+        return .startStroke(try decodeRemotePayload(RemoteStartStroke.self, from: dict, context: "startStroke"))
     case "appendPoints":
-        do {
-            let json = try JSONSerialization.data(withJSONObject: dict, options: [])
-            let s = try JSONDecoder().decode(RemoteAppendPoints.self, from: json)
-            return .appendPoints(s)
-        } catch {
-            throw RemoteParseError.invalidPayload("appendPoints: \(error)")
-        }
+        return .appendPoints(try decodeRemotePayload(RemoteAppendPoints.self, from: dict, context: "appendPoints"))
     case "endStroke":
-        if let sid = dict["strokeId"] as? String {
-            return .endStroke(strokeId: sid)
-        } else {
-            throw RemoteParseError.invalidPayload("endStroke missing strokeId")
-        }
+        return .endStroke(strokeId: try requiredString("strokeId", in: dict, context: "endStroke"))
     case "undo":
         return .undo
     case "redo":
         return .redo
+    case "pairing":
+        return try parsePairing(dict)
     default:
         throw RemoteParseError.unknownType(type)
     }
 }
 
+private func remoteDictionary(from data: Data) throws -> [String: Any] {
+    let any = try JSONSerialization.jsonObject(with: data, options: [])
+    guard let dict = any as? [String: Any] else {
+        throw RemoteParseError.invalidJSON
+    }
+    return dict
+}
+
+private func decodeRemotePayload<T: Decodable>(_ type: T.Type,
+                                               from dict: [String: Any],
+                                               context: String) throws -> T {
+    do {
+        let json = try JSONSerialization.data(withJSONObject: dict, options: [])
+        return try JSONDecoder().decode(type, from: json)
+    } catch {
+        throw RemoteParseError.invalidPayload("\(context): \(error)")
+    }
+}
+
+private func requiredString(_ key: String, in dict: [String: Any], context: String) throws -> String {
+    guard let value = dict[key] as? String else {
+        throw RemoteParseError.invalidPayload("\(context) missing \(key)")
+    }
+    return value
+}
+
+private func parsePairing(_ dict: [String: Any]) throws -> RemoteAction {
+    .pairing(
+        clientId: try requiredString("clientId", in: dict, context: "pairing"),
+        pin: try requiredString("pin", in: dict, context: "pairing"),
+        remember: dict["remember"] as? Bool ?? false
+    )
+}
+
 // MARK: - Port protocol
 
+// All methods are called on the main actor for simplicity and to match
+// the editor's main-thread requirements.
+@MainActor
 public protocol RemoteControlPort: AnyObject {
     /// Called when a remote stroke starts. The coordinates are normalized (0..1).
     func remote_startStroke(_ s: RemoteStartStroke)

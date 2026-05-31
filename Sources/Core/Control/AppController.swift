@@ -1,6 +1,7 @@
 // ABOUTME: Activation state machine and selection gesture router. Bridges
 // ABOUTME: raw pointer input to Editor calls; owns click-through toggling via WindowControl.
 
+// swiftlint:disable file_length
 import Foundation
 
 @MainActor
@@ -373,4 +374,80 @@ public final class AppController { // swiftlint:disable:this type_body_length
         if !drawingsVisible { drawingsVisible = true }
     }
 
+}
+
+// MARK: - RemoteControlPort conformance
+
+extension AppController: RemoteControlPort {
+    /// Called when a remote stroke starts. The coordinates are normalized (0..1).
+    public func remote_startStroke(_ s: RemoteStartStroke) {
+        // Convert normalized coordinates to document space
+        // For now, use a placeholder canvas size - in production, inject actual bounds
+        let canvasSize = Size(width: 1000, height: 1000) // TODO: Use actual canvas bounds
+        let point = normalizedPointToCanvasPoint(s.point, canvasSize: canvasSize)
+        
+        // Use default color and width from toolbar state
+        let color = currentColor
+        let width = currentWidth
+        
+        print("Remote start stroke: tool=\(s.tool), point=\(point), color=\(color), width=\(width)")
+        
+        // Start stroke in editor
+        _ = editor.startStroke(color: color, width: width, pointerType: .pen) // TODO: Use actual pointer type
+    }
+
+    /// Called to append points to an in-progress stroke.
+    public func remote_appendPoints(_ a: RemoteAppendPoints) {
+        let canvasSize = Size(width: 1000, height: 1000) // TODO: Use actual canvas bounds
+        let points = a.points.map { normalizedPointToCanvasPoint($0, canvasSize: canvasSize) }
+        print("Remote append points: count=\(points.count)")
+        
+        for point in points {
+            editor.appendPoint(point)
+        }
+    }
+
+    /// Called when a remote stroke ends.
+    public func remote_endStroke(strokeId: String) {
+        print("Remote end stroke: id=\(strokeId)")
+        editor.endStroke()
+    }
+
+    /// Undo command from remote client
+    public func remote_undo() {
+        print("Remote undo")
+        _ = editor.undo()
+    }
+
+    /// Redo command from remote client
+    public func remote_redo() {
+        print("Remote redo")
+        _ = editor.redo()
+    }
+
+    /// Convenience method to dispatch a parsed RemoteAction.
+    public func remote_handleAction(_ action: RemoteAction) {
+        switch action {
+        case .startStroke(let s):
+            remote_startStroke(s)
+        case .appendPoints(let a):
+            remote_appendPoints(a)
+        case .endStroke(let id):
+            remote_endStroke(strokeId: id)
+        case .undo:
+            remote_undo()
+        case .redo:
+            remote_redo()
+        case .pairing:
+            break // Pairing handled by PairingManager
+        }
+    }
+
+    /// Helper to convert normalized coordinates (0..1) to canvas point
+    private func normalizedPointToCanvasPoint(_ p: RemoteStrokePoint, canvasSize: Size) -> StrokePoint {
+        let x = p.x * canvasSize.width
+        let y = p.y * canvasSize.height
+        let pressure = p.pressure ?? 1.0
+        return StrokePoint(x: x, y: y, pressure: pressure)
+    }
 }

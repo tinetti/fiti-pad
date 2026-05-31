@@ -38,6 +38,12 @@ struct MenubarControllerTests {
         #expect(menubar.currentSymbolName == "theatermask.and.paintbrush")
     }
 
+    @Test("status item always includes a visible text label")
+    func statusItemIncludesVisibleLabel() {
+        let (menubar, _, _, _, _) = make()
+        #expect(menubar.testOnlyStatusButtonTitle == "fiti")
+    }
+
     @Test("icon swaps to the filled symbol when controller becomes active")
     func activateSwapsIcon() {
         let (menubar, controller, _, _, _) = make()
@@ -51,6 +57,22 @@ struct MenubarControllerTests {
         controller.activate()
         controller.deactivate()
         #expect(menubar.currentSymbolName == "theatermask.and.paintbrush")
+    }
+
+    @Test("status item falls back to text if the SF Symbol is unavailable")
+    func unavailableSymbolFallsBackToText() {
+        let (_, controller, _, editor, _) = make()
+        let menubar = MenubarController(
+            controller: controller,
+            editor: editor,
+            iconSymbols: MenubarIconSymbols(
+                inactive: "fiti.symbol.that.does.not.exist",
+                active: "fiti.symbol.that.does.not.exist.fill"
+            ),
+            onOpenPreferences: {}
+        )
+        #expect(menubar.currentSymbolName == "fiti.symbol.that.does.not.exist")
+        #expect(menubar.testOnlyStatusButtonTitle == "fiti")
     }
 
     @Test("activeDrawing stays on the filled icon")
@@ -88,6 +110,26 @@ struct MenubarControllerTests {
         let item = try #require(menubar.menu.items.first { $0.title == "Activate" })
         #expect(item.keyEquivalent == "f")
         #expect(item.keyEquivalentModifierMask == [.option])
+    }
+
+    @Test("remote pairing PIN item is omitted by default")
+    func remotePairingPinOmittedByDefault() {
+        let (menubar, _, _, _, _) = make()
+        #expect(menubar.menu.item(withTitle: "Remote Pairing PIN: 1234") == nil)
+    }
+
+    @Test("remote pairing PIN item is shown when provided")
+    func remotePairingPinShownWhenProvided() {
+        let (_, controller, _, editor, _) = make()
+        let menubar = MenubarController(
+            controller: controller,
+            editor: editor,
+            remotePairingPIN: "1234",
+            onOpenPreferences: {}
+        )
+        let item = menubar.menu.item(withTitle: "Remote Pairing PIN: 1234")
+        #expect(item != nil)
+        #expect(item?.isEnabled == false)
     }
 
     @Test("Preferences item has Cmd+, key equivalent")

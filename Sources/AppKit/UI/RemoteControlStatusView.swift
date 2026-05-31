@@ -2,20 +2,24 @@ import SwiftUI
 
 /// Small status indicator shown in the toolbar when a remote controller is active.
 public struct RemoteControlStatusView: View {
-    @State private var isConnected: Bool = false
-    @State private var controllerName: String? = nil
-    
+    private final class StatusState {
+        var isConnected = false
+        var controllerName: String?
+    }
+
+    private let state = StatusState()
+
     public init() {}
-    
+
     public var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: isConnected ? "arrow.right.circle.fill" : "arrow.right.circle")
-                .foregroundColor(isConnected ? .green : .orange)
-            
-            if let name = controllerName {
+            Image(systemName: state.isConnected ? "arrow.right.circle.fill" : "arrow.right.circle")
+                .foregroundColor(state.isConnected ? .green : .orange)
+
+            if let name = state.controllerName {
                 Text(name)
                     .font(.caption)
-                    .foregroundColor(isConnected ? .green : .orange)
+                    .foregroundColor(state.isConnected ? .green : .orange)
             }
         }
         .padding(.horizontal, 8)
@@ -25,25 +29,26 @@ public struct RemoteControlStatusView: View {
                 .fill(Color.clear)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isConnected ? Color.green.opacity(0.3) : Color.orange.opacity(0.3), lineWidth: 1)
+                        .stroke(state.isConnected ? Color.green.opacity(0.3) : Color.orange.opacity(0.3),
+                                lineWidth: 1)
                 )
         )
     }
-    
+
     /// Call this from the controller to update the status.
     public func setRemoteController(name: String?) {
-        controllerName = name
-        isConnected = name != nil
+        state.controllerName = name
+        state.isConnected = name != nil
     }
-    
+
     public func clearRemoteController() {
-        controllerName = nil
-        isConnected = false
+        state.controllerName = nil
+        state.isConnected = false
     }
-    
+
     // Public getters for testing
-    public var isConnectedPublic: Bool { isConnected }
-    public var controllerNamePublic: String? { controllerName }
+    public var isConnectedPublic: Bool { state.isConnected }
+    public var controllerNamePublic: String? { state.controllerName }
 }
 
 // MARK: - Previews
@@ -56,7 +61,7 @@ struct RemoteControlStatusView_Previews: PreviewProvider {
                     let view = RemoteControlStatusView()
                     view.setRemoteController(name: "iPad Air")
                 }
-            
+
             RemoteControlStatusView()
         }
         .padding()

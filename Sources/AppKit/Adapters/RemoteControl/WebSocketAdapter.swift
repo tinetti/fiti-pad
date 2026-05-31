@@ -2,6 +2,7 @@ import Foundation
 
 /// Lightweight adapter that maps RemoteAction messages into RemoteControlPort calls.
 /// This can be embedded in a WebSocket server or used directly for testing.
+@MainActor
 public final class WebSocketAdapter {
     private weak var port: RemoteControlPort?
     private let pairingManager: PairingManager

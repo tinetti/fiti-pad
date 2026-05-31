@@ -3,18 +3,39 @@
 
 import AppKit
 
+public struct MenubarIconSymbols: Equatable, Sendable {
+    public let inactive: String
+    public let active: String
+
+    public init(inactive: String, active: String) {
+        self.inactive = inactive
+        self.active = active
+    }
+
+    public static let `default` = MenubarIconSymbols(
+        inactive: "theatermask.and.paintbrush",
+        active: "theatermask.and.paintbrush.fill"
+    )
+
+    fileprivate func symbolName(for mode: AppController.Mode) -> String {
+        mode == .inactive ? inactive : active
+    }
+}
+
 @MainActor
 public final class MenubarController: NSObject {
     private let controller: AppController
     private let editor: Editor
     private let onOpenPreferences: @MainActor () -> Void
     private let statusItem: NSStatusItem
+    private let iconSymbols: MenubarIconSymbols
     internal let menu: NSMenu
     internal private(set) var currentSymbolName: String = ""
 
     private let activateItem: NSMenuItem
     private let deactivateItem: NSMenuItem
     private let preferencesItem: NSMenuItem
+    private let remotePairingItem: NSMenuItem?
     private let undoItem: NSMenuItem
     private let redoItem: NSMenuItem
     private var drawingItems: [KeyCommand: NSMenuItem] = [:]
@@ -22,12 +43,15 @@ public final class MenubarController: NSObject {
     public init(
         controller: AppController,
         editor: Editor,
+        remotePairingPIN: String? = nil,
+        iconSymbols: MenubarIconSymbols = .default,
         onOpenPreferences: @escaping @MainActor () -> Void
     ) {
         self.controller = controller
         self.editor = editor
         self.onOpenPreferences = onOpenPreferences
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        self.iconSymbols = iconSymbols
         self.menu = NSMenu()
 
         self.activateItem = NSMenuItem(title: "Activate", action: #selector(activate), keyEquivalent: "f")
@@ -35,6 +59,7 @@ public final class MenubarController: NSObject {
         // (routed through escapePressed) so it stays layered during text editing.
         self.deactivateItem = NSMenuItem(title: "Deactivate", action: #selector(deactivate), keyEquivalent: "")
         self.preferencesItem = NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ",")
+        self.remotePairingItem = Self.makeRemotePairingItem(pin: remotePairingPIN)
         let clearItem = NSMenuItem(title: "Clear", action: #selector(clearAll), keyEquivalent: "k")
         self.undoItem = NSMenuItem(title: "Undo", action: #selector(undo), keyEquivalent: "z")
         self.redoItem = NSMenuItem(title: "Redo", action: #selector(redo), keyEquivalent: "z")
@@ -61,6 +86,10 @@ public final class MenubarController: NSObject {
 
         menu.addItem(activateItem)
         menu.addItem(deactivateItem)
+        if let remotePairingItem {
+            remotePairingItem.isEnabled = false
+            menu.addItem(remotePairingItem)
+        }
         menu.addItem(.separator())
         menu.addItem(preferencesItem)
         menu.addItem(.separator())
@@ -73,9 +102,16 @@ public final class MenubarController: NSObject {
 
         menu.delegate = self
         statusItem.menu = menu
+        statusItem.length = NSStatusItem.variableLength
+        statusItem.button?.imagePosition = .imageLeading
 
         updateIcon(for: controller.mode)
         controller.onModeChanged = { [weak self] mode in self?.updateIcon(for: mode) }
+    }
+
+    private static func makeRemotePairingItem(pin: String?) -> NSMenuItem? {
+        guard let pin else { return nil }
+        return NSMenuItem(title: "Remote Pairing PIN: \(pin)", action: nil, keyEquivalent: "")
     }
 
     private func buildDrawingSubmenu(_ menu: NSMenu) {
@@ -119,12 +155,19 @@ public final class MenubarController: NSObject {
     }
 
     private func updateIcon(for mode: AppController.Mode) {
-        let name = mode == .inactive ? "theatermask.and.paintbrush"
-                                     : "theatermask.and.paintbrush.fill"
+        let name = iconSymbols.symbolName(for: mode)
         currentSymbolName = name
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "fiti")
-        image?.isTemplate = true
-        statusItem.button?.image = image
+        statusItem.button?.title = "fiti"
+        if let image = NSImage(systemSymbolName: name, accessibilityDescription: "fiti") {
+            image.isTemplate = true
+            statusItem.button?.image = image
+        } else {
+            statusItem.button?.image = nil
+        }
+    }
+
+    internal var testOnlyStatusButtonTitle: String? {
+        statusItem.button?.title
     }
 
     @objc private func activate() { controller.activate() }
